@@ -1,11 +1,8 @@
 const request = require('supertest');
 const { app, db } = require('../src/app');
 
-// Close the database connection after all tests
-afterAll(() => {
-  if (db) {
-    db.close();
-  }
+beforeEach(() => {
+  db.exec('DELETE FROM items');
 });
 
 // Test helpers
@@ -23,6 +20,11 @@ const createItem = async (name = 'Temp Item to Delete') => {
 describe('API Endpoints', () => {
   describe('GET /api/items', () => {
     it('should return all items', async () => {
+      await request(app)
+        .post('/api/items')
+        .send({ name: 'Seed item for list test' })
+        .set('Accept', 'application/json');
+
       const response = await request(app).get('/api/items');
 
       expect(response.status).toBe(200);
@@ -33,6 +35,7 @@ describe('API Endpoints', () => {
       const item = response.body[0];
       expect(item).toHaveProperty('id');
       expect(item).toHaveProperty('name');
+      expect(item).toHaveProperty('due_date');
       expect(item).toHaveProperty('created_at');
     });
   });

@@ -5,53 +5,81 @@ import { rest } from 'msw';
 import { setupServer } from 'msw/node';
 import App from '../App';
 
-// Mock server to intercept API requests
+let items = [];
+
 const server = setupServer(
-  // GET /api/items handler
   rest.get('/api/items', (req, res, ctx) => {
+    return res(ctx.status(200), ctx.json(items));
+  }),
+
+  rest.post('/api/items', (req, res, ctx) => {
+    const { name, dueDate } = req.body;
+
+    if (!name || name.trim() === '') {
+      return res(ctx.status(400), ctx.json({ error: 'Item name is required' }));
+    }
+
+    const created = {
+      id: items.length + 1,
+      name,
+      due_date: dueDate || null,
+      created_at: new Date().toISOString(),
+    };
+    items.push(created);
+
+    return res(ctx.status(201), ctx.json(created));
+  }),
+
+  rest.put('/api/items/:id', async (req, res, ctx) => {
+    const id = Number(req.params.id);
+    const { name, dueDate } = req.body;
+    const existing = items.find((item) => item.id === id);
+
+    if (!existing) {
+      return res(ctx.status(404), ctx.json({ error: 'Item not found' }));
+    }
+
+    existing.name = name;
+    existing.due_date = dueDate || null;
+
+    return res(ctx.status(200), ctx.json(existing));
+  }),
+
+  rest.delete('/api/items/:id', (req, res, ctx) => {
+    const id = Number(req.params.id);
+    items = items.filter((item) => item.id !== id);
+
     return res(
       ctx.status(200),
-      ctx.json([
-        { id: 1, name: 'Test Item 1', created_at: '2023-01-01T00:00:00.000Z' },
-        { id: 2, name: 'Test Item 2', created_at: '2023-01-02T00:00:00.000Z' },
-      ])
-    );
-  }),
-  
-  // POST /api/items handler
-  rest.post('/api/items', (req, res, ctx) => {
-    const { name } = req.body;
-    
-    if (!name || name.trim() === '') {
-      return res(
-        ctx.status(400),
-        ctx.json({ error: 'Item name is required' })
-      );
-    }
-    
-    return res(
-      ctx.status(201),
-      ctx.json({
-        id: 3,
-        name,
-        created_at: new Date().toISOString(),
-      })
+      ctx.json({ message: 'Item deleted successfully', id })
     );
   })
 );
 
-// Setup and teardown for the mock server
 beforeAll(() => server.listen());
-afterEach(() => server.resetHandlers());
+afterEach(() => {
+  items = [
+    { id: 1, name: 'Write docs', due_date: '2026-08-20', created_at: '2026-08-19T10:00:00.000Z' },
+    { id: 2, name: 'Review code', due_date: null, created_at: '2026-08-19T11:00:00.000Z' },
+  ];
+  server.resetHandlers();
+});
 afterAll(() => server.close());
+
+beforeEach(() => {
+  items = [
+    { id: 1, name: 'Write docs', due_date: '2026-08-20', created_at: '2026-08-19T10:00:00.000Z' },
+    { id: 2, name: 'Review code', due_date: null, created_at: '2026-08-19T11:00:00.000Z' },
+  ];
+});
 
 describe('App Component', () => {
   test('renders the header', async () => {
     await act(async () => {
       render(<App />);
     });
-    expect(screen.getByText('React Frontend with Node Backend')).toBeInTheDocument();
-    expect(screen.getByText('Connected to in-memory database')).toBeInTheDocument();
+    expect(screen.getByText('TODO App')).toBeInTheDocument();
+    expect(screen.getByText('Add, edit, and organize tasks with optional due dates.')).toBeInTheDocument();
   });
 
   test('loads and displays items', async () => {
@@ -64,8 +92,8 @@ describe('App Component', () => {
     
     // Wait for items to load
     await waitFor(() => {
-      expect(screen.getByText('Test Item 1')).toBeInTheDocument();
-      expect(screen.getByText('Test Item 2')).toBeInTheDocument();
+      expect(screen.getByText('Write docs')).toBeInTheDocument();
+      expect(screen.getByText('Review code')).toBeInTheDocument();
     });
   });
 
@@ -82,19 +110,54 @@ describe('App Component', () => {
     });
     
     // Fill in the form and submit
-    const input = screen.getByPlaceholderText('Enter item name');
+    const input = screen.getByPlaceholderText('Enter task');
     await act(async () => {
-      await user.type(input, 'New Test Item');
+      await user.type(input, 'New Test Task');
+    });
+
+    const dueDateInput = screen.getByLabelText(/Due date/i);
+    await act(async () => {
+      await user.type(dueDateInput, '2026-08-21');
     });
     
-    const submitButton = screen.getByText('Add Item');
+    const submitButton = screen.getByRole('button', { name: 'Add Task' });
     await act(async () => {
       await user.click(submitButton);
     });
     
     // Check that the new item appears
     await waitFor(() => {
-      expect(screen.getByText('New Test Item')).toBeInTheDocument();
+      expect(screen.getByText('New Test Task')).toBeInTheDocument();
+    });
+  });
+
+  test('edits an existing item', async () => {
+    const user = userEvent.setup();
+
+    await act(async () => {
+      render(<App />);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Write docs')).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      await user.click(screen.getAllByText('Edit')[0]);
+    });
+
+    const input = screen.getByPlaceholderText('Enter task');
+    await act(async () => {
+      await user.clear(input);
+      await user.type(input, 'Write final docs');
+    });
+
+    await act(async () => {
+      await user.click(screen.getByText('Save Changes'));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Write final docs')).toBeInTheDocument();
     });
   });
 
@@ -130,7 +193,7 @@ describe('App Component', () => {
     
     // Wait for empty state message
     await waitFor(() => {
-      expect(screen.getByText('No items found. Add some!')).toBeInTheDocument();
+      expect(screen.getByText('No tasks found. Add one to get started.')).toBeInTheDocument();
     });
   });
 });
