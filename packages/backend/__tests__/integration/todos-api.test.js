@@ -30,6 +30,15 @@ describe('TODO API integration', () => {
     expect(updated.body.due_date).toBe('2026-08-22');
   });
 
+  test('rejects invalid due date format', async () => {
+    const response = await request(app)
+      .post('/api/items')
+      .send({ name: 'Bad date task', dueDate: '08-22-2026' });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toHaveProperty('error', 'Due date must be in YYYY-MM-DD format');
+  });
+
   test('returns sorted tasks by due date then id', async () => {
     await request(app).post('/api/items').send({ name: 'No due date' });
     await request(app).post('/api/items').send({ name: 'Later', dueDate: '2026-09-01' });

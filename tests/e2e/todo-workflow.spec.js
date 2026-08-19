@@ -15,6 +15,12 @@ test.describe('TODO workflow', () => {
 
     await expect(todoPage.taskRow('Plan sprint')).toBeVisible();
     await expect(page.getByText('Due: 2026-08-23')).toBeVisible();
+
+    const apiResponse = await page.request.get('/api/items');
+    const tasks = await apiResponse.json();
+    const createdTask = tasks.find((task) => task.name === 'Plan sprint');
+    expect(createdTask).toBeTruthy();
+    expect(createdTask.due_date).toBe('2026-08-23');
   });
 
   test('user can edit an existing task', async ({ page }) => {
@@ -26,5 +32,11 @@ test.describe('TODO workflow', () => {
 
     await expect(todoPage.taskRow('Draft release notes')).toBeVisible();
     await expect(page.getByText('Due: 2026-08-27')).toBeVisible();
+
+    const apiResponse = await page.request.get('/api/items');
+    const tasks = await apiResponse.json();
+    const editedTask = tasks.find((task) => task.name === 'Draft release notes');
+    expect(editedTask).toBeTruthy();
+    expect(editedTask.due_date).toBe('2026-08-27');
   });
 });

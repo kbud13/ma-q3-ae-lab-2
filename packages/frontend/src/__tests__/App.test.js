@@ -128,7 +128,11 @@ describe('App Component', () => {
     // Check that the new item appears
     await waitFor(() => {
       expect(screen.getByText('New Test Task')).toBeInTheDocument();
+      expect(screen.getByText('Due: 2026-08-21')).toBeInTheDocument();
     });
+
+    expect(input).toHaveValue('');
+    expect(dueDateInput).toHaveValue('');
   });
 
   test('edits an existing item', async () => {
